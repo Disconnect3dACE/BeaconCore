@@ -4,6 +4,7 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
+from database import init_database
 
 load_dotenv()
 
@@ -91,6 +92,7 @@ class SetupView(discord.ui.View):
 
 ##Persistent view setup to keep the button active even after bot restarts
 async def setup_hook():
+    await init_database()
     bot.add_view(SetupView())
 
 bot.setup_hook=setup_hook
