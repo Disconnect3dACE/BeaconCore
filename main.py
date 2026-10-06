@@ -4,14 +4,13 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from database import init_database
+from database import init_database, get_guild_settings
+
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = 997417956843716629
-SUGGESTION_CHANNEL_ID = 997418700397363291
-SUGGESTION_ARCHIVE_CHANNEL_ID = 997419035794870292
 
 intents = discord.Intents.default()
 
@@ -39,7 +38,25 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        channel = interaction.guild.get_channel(SUGGESTION_CHANNEL_ID)
+        settings = await get_guild_settings(interaction.guild.id)
+
+        if settings is None:
+            await interaction.response.send_message(
+                "This server has not been configured yet.",
+                ephemeral=True
+            )
+            return
+
+        channel = interaction.guild.get_channel(
+            settings["suggestion_channel_id"]
+        )
+
+        if channel is None:
+            await interaction.response.send_message(
+                "I couldn't find the configured suggestion channel.",
+                ephemeral=True
+            )
+            return   
 
         embed = discord.Embed(
             title="New Suggestion",
@@ -237,12 +254,19 @@ async def archive_suggestion(
         embed: discord.Embed,
         interaction: discord.Interaction
     ):
+
+        settings = await get_guild_settings(interaction.guild.id)
+
+        if settings is None:
+            return
+        
         archive_channel = interaction.guild.get_channel(
-            SUGGESTION_ARCHIVE_CHANNEL_ID
+            settings["archive_channel_id"]
         )
 
         if archive_channel is None:
             return
+
         archive_embed = embed.copy()   
 
         archive_embed.add_field(
