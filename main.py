@@ -19,7 +19,7 @@ bot = commands.Bot(
     intents=intents
 )
 
-## Suggestion Modal and Setup View Classes
+##Classes for UI Elements
 class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
     suggestion = discord.ui.TextInput(
         label="Suggestion",
@@ -107,6 +107,42 @@ class SetupView(discord.ui.View):
     ):
         await interaction.response.send_modal(SuggestionModal())
 
+class SetupModal(discord.ui.Modal, title="Beacon Setup"):
+    panel_channel = discord.ui.Label(
+        text="Panel Channel",
+        description="Where Beacon's suggestion button will be posted.",
+        component=discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            required=True
+        )
+    )
+
+    suggestion_channel = discord.ui.Label(
+        text="Suggestion Channel",
+        description="Where new suggestions will be posted.",
+        component=discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            required=True
+        )
+    )
+
+    archive_channel = discord.ui.Label(
+        text="Archive Channel",
+        description="Where finalized suggestions will be stored.",
+        component=discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            required=True
+        )
+    )
+
+    staff_role = discord.ui.Label(
+        text="Staff Role",
+        description="The role that will have access to manage suggestions.",
+        component=discord.ui.RoleSelect(
+            required=True
+        )
+    )
+
 ##Persistent view setup to keep the button active even after bot restarts
 async def setup_hook():
     await init_database()
@@ -133,14 +169,11 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong!")
 
 ##Basic setup command to send the setup message with the button, nothing detailed, just a simple command to send the setup message with the button
-@bot.tree.command(name="setup", description="Basic bot setup")
-async def setup(interaction:discord.Interaction):
-    view = SetupView()
+@bot.tree.command(name="setup", description="Set up Beacon for a server for the first time")
 
-    await interaction.response.send_message(
-        "Need Something?",
-        view=view
-    )
+@app_commands.checks.has_permissions(manage_guild=True)
+async def setup(interaction: discord.Interaction):
+    await interaction.response.send_modal(SetupModal())
 
 ##Helper functions for suggestion commands
 async def get_suggestion_message(message_link: str, interaction: discord.Interaction):
