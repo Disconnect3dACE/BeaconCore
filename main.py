@@ -4,7 +4,7 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from database import init_database, get_guild_settings
+from database import init_database, get_guild_settings, save_guild_settings
 
 
 load_dotenv()
@@ -142,6 +142,29 @@ class SetupModal(discord.ui.Modal, title="Beacon Setup"):
             required=True
         )
     )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        panel_channel = self.panel_channel.component.values[0]
+        suggestion_channel = self.suggestion_channel.component.values[0]
+        archive_channel = self.archive_channel.component.values[0]
+        staff_role = self.staff_role.component.values[0]
+
+        await save_guild_settings(
+            guild_id=interaction.guild.id,
+            suggestion_channel_id=suggestion_channel.id,
+            archive_channel_id=archive_channel.id,
+            staff_role_id=staff_role.id
+        )
+
+        await panel_channel.send(
+            "Click the button below to submit a suggestion!",
+            view=SetupView()
+        )
+
+        await interaction.response.send_message(
+            "Beacon has been set up successfully!",
+            ephemeral=True
+        )
 
 ##Persistent view setup to keep the button active even after bot restarts
 async def setup_hook():

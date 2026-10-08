@@ -46,7 +46,7 @@ async def save_guild_settings(
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
             """
-            INSERT OR REPLACE INTO guild_settings (
+            INSERT INTO guild_settings (
                 guild_id,
                 suggestion_channel_id,
                 archive_channel_id,
