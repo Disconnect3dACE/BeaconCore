@@ -10,7 +10,6 @@ from database import init_database, get_guild_settings, save_guild_settings, upd
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = 997417956843716629
 
 intents = discord.Intents.default()
 
@@ -263,20 +262,17 @@ async def setup_hook():
     await init_database()
     bot.add_view(SetupView())
 
+    synced = await bot.tree.sync()
+
+    print(f"Synced {len(synced)} commands globally.")
+
 bot.setup_hook=setup_hook
 
 ##On ready event and command syncing
 @bot.event
 async def on_ready():
-
-    guild = discord.Object(id=GUILD_ID)
-
-    bot.tree.copy_global_to(guild=guild)
-    synced = await bot.tree.sync(guild=guild)
-
     print(f"Logged in as {bot.user}")
     print(f"Bot ID: {bot.user.id}")
-    print(f"Synced {len(synced)} commands")
 
 ##Error handling for application commands
 @bot.tree.error
@@ -292,10 +288,18 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
             ephemeral=True
         )
     else:
-        await interaction.response.send_message(
-            "An error occurred while processing the command.",
-            ephemeral=True
-        )
+        print(f"Unhandled error: {error}")
+
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                "An unexpected error occurred while processing the command.",
+                ephemeral=True
+            )
+        else:
+                await interaction.response.send_message(
+                    "An error occurred while processing the command.",
+                    ephemeral=True
+                )
 
 ##Check if a user has the staff role or manage_guild permission
 async def is_beacon_staff(interaction: discord.Interaction):
@@ -325,12 +329,24 @@ async def ping(interaction: discord.Interaction):
 
 ##Setup command to initialize Beacon for a server, only usable by users with manage_guild permissions
 @bot.tree.command(name="setup", description="Set up Beacon for a server for the first time")
+@app_commands.guild_only()
 @app_commands.checks.has_permissions(manage_guild=True)
 async def setup(interaction: discord.Interaction):
+    existing_settings = await get_guild_settings(interaction.guild.id)
+
+    if existing_settings is not None:
+        await interaction.response.send_message(
+            "Beacon has already been set up for this server."
+            "Use '/settings' to change settings.",
+            ephemeral=True
+        )
+        return
+    
     await interaction.response.send_modal(SetupModal())
 
 ##Command that allows admins to see current Beacon settings
 @bot.tree.command(name="panel", description="View current Beacon configuration")
+@app_commands.guild_only()
 @app_commands.checks.has_permissions(manage_guild=True)
 async def panel(interaction: discord.Interaction):
     guild_settings = await get_guild_settings(interaction.guild.id)
@@ -385,6 +401,7 @@ async def panel(interaction: discord.Interaction):
 
 ##Approve and Deny commands for suggestions, only usable by users with staff permissions
 @bot.tree.command(name="approve",description="Approve a suggestion")
+@app_commands.guild_only()
 @app_commands.check(is_beacon_staff)
 async def approve(
     interaction: discord.Interaction,
@@ -425,6 +442,7 @@ async def approve(
     )
 
 @bot.tree.command(name="deny",description="Deny a suggestion")
+@app_commands.guild_only()
 @app_commands.check(is_beacon_staff)
 async def deny(
     interaction: discord.Interaction,
@@ -466,6 +484,7 @@ async def deny(
 
 ##Command to view and change Beacon settings, only usable by users with manage_guild permissions
 @bot.tree.command(name="settings", description="Configure Beacon settings")
+@app_commands.guild_only()
 @app_commands.checks.has_permissions(manage_guild=True)
 async def settings_command(interaction: discord.Interaction):
     settings = await get_guild_settings(interaction.guild.id)
