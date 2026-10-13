@@ -72,6 +72,7 @@ async def save_guild_settings(
                 int(voting_enabled)
             )
         )
+        await db.commit()
 
 ##Updates guild settings in the database
 async def update_guild_settings(guild_id: int, **changes):
@@ -92,5 +93,3 @@ async def update_guild_settings(guild_id: int, **changes):
             voting_enabled=bool(settings.get("voting_enabled"))
         )
         return True
-
-        await db.commit()

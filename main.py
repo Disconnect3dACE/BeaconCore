@@ -19,7 +19,8 @@ bot = commands.Bot(
     intents=intents
 )
 
-##Classes for UI Elements
+##CLASSES
+
 class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
     suggestion = discord.ui.TextInput(
         label="Suggestion",
@@ -277,12 +278,52 @@ async def on_ready():
     print(f"Bot ID: {bot.user.id}")
     print(f"Synced {len(synced)} commands")
 
+##Error handling for application commands
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(
+            "You need Manage Server permission to use this command.",
+            ephemeral=True
+        )
+    elif isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message(
+            "You don't have the required Staff Role to use this command.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "An error occurred while processing the command.",
+            ephemeral=True
+        )
+
+##Check if a user has the staff role or manage_guild permission
+async def is_beacon_staff(interaction: discord.Interaction):
+    settings = await get_guild_settings(interaction.guild.id)
+
+    if settings is None:
+        return False
+
+    if interaction.user.guild_permissions.manage_guild:
+        return True
+
+    staff_role_id = settings["staff_role_id"]
+
+    return any(
+        role.id == staff_role_id 
+        for role in interaction.user.roles
+        )
+
+
+
+##COMMANDS
+
 ##Ping command to check if the bot is online
 @bot.tree.command(name="ping", description="Check to see if the bot is online")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong!")
 
-##Basic setup command to send the setup message with the button, nothing detailed, just a simple command to send the setup message with the button
+##Setup command to initialize Beacon for a server, only usable by users with manage_guild permissions
 @bot.tree.command(name="setup", description="Set up Beacon for a server for the first time")
 @app_commands.checks.has_permissions(manage_guild=True)
 async def setup(interaction: discord.Interaction):
@@ -290,6 +331,7 @@ async def setup(interaction: discord.Interaction):
 
 ##Command that allows admins to see current Beacon settings
 @bot.tree.command(name="panel", description="View current Beacon configuration")
+@app_commands.checks.has_permissions(manage_guild=True)
 async def panel(interaction: discord.Interaction):
     guild_settings = await get_guild_settings(interaction.guild.id)
 
@@ -340,6 +382,125 @@ async def panel(interaction: discord.Interaction):
         view=PanelView(interaction.guild.id), 
         ephemeral=True
         )
+
+##Approve and Deny commands for suggestions, only usable by users with staff permissions
+@bot.tree.command(name="approve",description="Approve a suggestion")
+@app_commands.check(is_beacon_staff)
+async def approve(
+    interaction: discord.Interaction,
+    message_link: str
+):
+    message, embed = await get_suggestion_message(
+        message_link, 
+        interaction
+    )
+
+    if message is None:
+        return
+
+    if suggestion_is_decided(embed):   
+        await interaction.response.send_message(
+            "This suggestion has already been decided.",
+            ephemeral=True
+        )
+        return
+    
+    set_status(embed, "✅ Approved")
+    await message.edit(embed=embed)
+
+    await interaction.response.send_message(
+        "Suggestion approved.",
+        ephemeral=True
+    )
+
+    await archive_suggestion(
+        message,
+        embed,
+        interaction
+    )
+
+    await close_suggestion_thread(
+        message,
+        f"✅ This suggestion has been approved by {interaction.user.display_name}."
+    )
+
+@bot.tree.command(name="deny",description="Deny a suggestion")
+@app_commands.check(is_beacon_staff)
+async def deny(
+    interaction: discord.Interaction,
+    message_link: str
+):
+    message, embed = await get_suggestion_message(
+        message_link, 
+        interaction
+    )
+
+    if message is None:
+        return
+    
+    if suggestion_is_decided(embed):
+        await interaction.response.send_message(
+            "This suggestion has already been decided.",
+            ephemeral=True
+        )
+        return
+
+    set_status(embed, "❌ Denied")
+    await message.edit(embed=embed)
+
+    await interaction.response.send_message(
+        "Suggestion denied.",
+        ephemeral=True
+    )
+
+    await archive_suggestion(
+        message,
+        embed,
+        interaction
+    )
+
+    await close_suggestion_thread(
+            message,
+            f"❌ This suggestion has been denied by {interaction.user.display_name}."
+        )
+
+##Command to view and change Beacon settings, only usable by users with manage_guild permissions
+@bot.tree.command(name="settings", description="Configure Beacon settings")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def settings_command(interaction: discord.Interaction):
+    settings = await get_guild_settings(interaction.guild.id)
+
+    if settings is None:
+        await interaction.response.send_message(
+            "Beacon has not been setup for this server yet.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(title="ChannelSettings", description="Changes are saved automatically")
+
+    # Add fields to the embed based on the settings
+    embed.add_field(
+        name="Suggestion Channel",
+        value=f"<#{settings['suggestion_channel_id']}>",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Archive Channel",
+        value=f"<#{settings['archive_channel_id']}>",
+        inline=False
+    )
+
+    await interaction.response.send_message(
+        embed=embed, 
+        view=ChannelSettingsView(),
+        ephemeral=True
+    )
+
+
+
+##HELPER FUNCTIONS
 
 ##Helper functions for suggestion commands
 async def get_suggestion_message(message_link: str, interaction: discord.Interaction):
@@ -476,118 +637,5 @@ async def archive_suggestion(
 
         await archive_channel.send(embed=archive_embed)
 
-##Approve and Deny commands for suggestions, only usable by users with manage_messages permission
-@bot.tree.command(name="approve",description="Approve a suggestion")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def approve(
-    interaction: discord.Interaction,
-    message_link: str
-):
-    message, embed = await get_suggestion_message(
-        message_link, 
-        interaction
-    )
 
-    if message is None:
-        return
-
-    if suggestion_is_decided(embed):   
-        await interaction.response.send_message(
-            "This suggestion has already been decided.",
-            ephemeral=True
-        )
-        return
-    
-    set_status(embed, "✅ Approved")
-    await message.edit(embed=embed)
-
-    await interaction.response.send_message(
-        "Suggestion approved.",
-        ephemeral=True
-    )
-
-    await archive_suggestion(
-        message,
-        embed,
-        interaction
-    )
-
-    await close_suggestion_thread(
-        message,
-        f"✅ This suggestion has been approved by {interaction.user.display_name}."
-    )
-
-@bot.tree.command(name="deny",description="Deny a suggestion")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def deny(
-    interaction: discord.Interaction,
-    message_link: str
-):
-    message, embed = await get_suggestion_message(
-        message_link, 
-        interaction
-    )
-
-    if message is None:
-        return
-    
-    if suggestion_is_decided(embed):
-        await interaction.response.send_message(
-            "This suggestion has already been decided.",
-            ephemeral=True
-        )
-        return
-
-    set_status(embed, "❌ Denied")
-    await message.edit(embed=embed)
-
-    await interaction.response.send_message(
-        "Suggestion denied.",
-        ephemeral=True
-    )
-
-    await archive_suggestion(
-        message,
-        embed,
-        interaction
-    )
-
-    await close_suggestion_thread(
-            message,
-            f"❌ This suggestion has been denied by {interaction.user.display_name}."
-        )
-
-@bot.tree.command(name="settings", description="Configure Beacon settings")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def settings_command(interaction: discord.Interaction):
-    settings = await get_guild_settings(interaction.guild.id)
-
-    if settings is None:
-        await interaction.response.send_message(
-            "Beacon has not been setup for this server yet.",
-            ephemeral=True
-        )
-        return
-
-    embed = discord.Embed(title="ChannelSettings", description="Changes are saved automatically")
-
-    # Add fields to the embed based on the settings
-    embed.add_field(
-        name="Suggestion Channel",
-        value=f"<#{settings['suggestion_channel_id']}>",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Archive Channel",
-        value=f"<#{settings['archive_channel_id']}>",
-        inline=False
-    )
-
-    await interaction.response.send_message(
-        embed=embed, 
-        view=ChannelSettingsView(),
-        ephemeral=True
-    )
-    
 bot.run(TOKEN)
