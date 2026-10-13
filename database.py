@@ -35,6 +35,7 @@ async def get_guild_settings(guild_id: int):
 
         return row
 
+##Saves guild settings to the database
 async def save_guild_settings(
         guild_id: int, 
         suggestion_channel_id: int, 
@@ -71,5 +72,25 @@ async def save_guild_settings(
                 int(voting_enabled)
             )
         )
+
+##Updates guild settings in the database
+async def update_guild_settings(guild_id: int, **changes):
+        current_settings = await get_guild_settings(guild_id)
+
+        if current_settings is None:
+             return False
+
+        settings = dict(current_settings)
+        settings.update(changes)
+
+        await save_guild_settings(
+            guild_id=guild_id,
+            suggestion_channel_id=settings.get("suggestion_channel_id"),
+            archive_channel_id=settings.get("archive_channel_id"),
+            staff_role_id=settings.get("staff_role_id"),
+            anonymous_enabled=bool(settings.get("anonymous_enabled")),
+            voting_enabled=bool(settings.get("voting_enabled"))
+        )
+        return True
 
         await db.commit()

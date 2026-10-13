@@ -4,7 +4,7 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from database import init_database, get_guild_settings, save_guild_settings
+from database import init_database, get_guild_settings, save_guild_settings, update_guild_settings
 
 
 load_dotenv()
@@ -194,6 +194,69 @@ class PanelView(discord.ui.View):
             ephemeral=True 
         )
 
+class SettingsChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self, setting_name: str, placeholder: str):
+        super().__init__(
+            channel_types=[discord.ChannelType.text],
+            placeholder=placeholder,
+            min_values=1,
+            max_values=1
+        )
+
+        self.setting_name = setting_name
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_channel = self.values[0]
+
+        await update_guild_settings(
+            guild_id=interaction.guild.id,
+            **{self.setting_name: selected_channel.id}
+        )
+
+        settings = await get_guild_settings(interaction.guild.id)
+
+        embed = discord.Embed(
+            title="Channel Settings",
+            description="Changes are saved automatically."
+        )
+
+        embed.add_field(
+            name="Suggestion Channel",
+            value=f"<#{settings['suggestion_channel_id']}>",
+            inline=False
+        )
+
+        embed.add_field(
+            name="Archive Channel",
+            value=f"<#{settings['archive_channel_id']}>",
+            inline=False
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=ChannelSettingsView()
+        )
+
+class ChannelSettingsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+        self.add_item(
+            SettingsChannelSelect(
+                "suggestion_channel_id",
+                "Change Suggestion Channel"
+            )
+        )
+
+        self.add_item(
+            SettingsChannelSelect(
+                "archive_channel_id",
+                "Change Archive Channel"
+            )
+        )
+
+
+
 ##Persistent view setup to keep the button active even after bot restarts
 async def setup_hook():
     await init_database()
@@ -221,7 +284,6 @@ async def ping(interaction: discord.Interaction):
 
 ##Basic setup command to send the setup message with the button, nothing detailed, just a simple command to send the setup message with the button
 @bot.tree.command(name="setup", description="Set up Beacon for a server for the first time")
-
 @app_commands.checks.has_permissions(manage_guild=True)
 async def setup(interaction: discord.Interaction):
     await interaction.response.send_modal(SetupModal())
@@ -415,10 +477,7 @@ async def archive_suggestion(
         await archive_channel.send(embed=archive_embed)
 
 ##Approve and Deny commands for suggestions, only usable by users with manage_messages permission
-@bot.tree.command(
-    name="approve",
-    description="Approve a suggestion"
-)
+@bot.tree.command(name="approve",description="Approve a suggestion")
 @app_commands.checks.has_permissions(manage_messages=True)
 async def approve(
     interaction: discord.Interaction,
@@ -458,10 +517,7 @@ async def approve(
         f"✅ This suggestion has been approved by {interaction.user.display_name}."
     )
 
-@bot.tree.command(
-    name="deny",
-    description="Deny a suggestion"
-)
+@bot.tree.command(name="deny",description="Deny a suggestion")
 @app_commands.checks.has_permissions(manage_messages=True)
 async def deny(
     interaction: discord.Interaction,
@@ -501,4 +557,37 @@ async def deny(
             f"❌ This suggestion has been denied by {interaction.user.display_name}."
         )
 
+@bot.tree.command(name="settings", description="Configure Beacon settings")
+@app_commands.checks.has_permissions(manage_messages=True)
+async def settings_command(interaction: discord.Interaction):
+    settings = await get_guild_settings(interaction.guild.id)
+
+    if settings is None:
+        await interaction.response.send_message(
+            "Beacon has not been setup for this server yet.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(title="ChannelSettings", description="Changes are saved automatically")
+
+    # Add fields to the embed based on the settings
+    embed.add_field(
+        name="Suggestion Channel",
+        value=f"<#{settings['suggestion_channel_id']}>",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Archive Channel",
+        value=f"<#{settings['archive_channel_id']}>",
+        inline=False
+    )
+
+    await interaction.response.send_message(
+        embed=embed, 
+        view=ChannelSettingsView(),
+        ephemeral=True
+    )
+    
 bot.run(TOKEN)
