@@ -144,10 +144,19 @@ class SetupModal(discord.ui.Modal, title="Beacon Setup"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        panel_channel = self.panel_channel.component.values[0]
+        selected_panel_channel = self.panel_channel.component.values[0]
         suggestion_channel = self.suggestion_channel.component.values[0]
         archive_channel = self.archive_channel.component.values[0]
         staff_role = self.staff_role.component.values[0]
+
+        panel_channel = interaction.guild.get_channel(selected_panel_channel.id)
+
+        if panel_channel is None:
+            await interaction.response.send_message(
+                "Couldnt find the selected panel channel.",
+                ephemeral=True
+            )
+            return
 
         await save_guild_settings(
             guild_id=interaction.guild.id,
@@ -333,7 +342,7 @@ async def archive_suggestion(
 
         await archive_channel.send(embed=archive_embed)
 
-#Approve and Deny commands for suggestions, only usable by users with manage_messages permission
+##Approve and Deny commands for suggestions, only usable by users with manage_messages permission
 @bot.tree.command(
     name="approve",
     description="Approve a suggestion"
