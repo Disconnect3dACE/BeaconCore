@@ -175,6 +175,25 @@ class SetupModal(discord.ui.Modal, title="Beacon Setup"):
             ephemeral=True
         )
 
+class PanelView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+
+    @discord.ui.button(
+        label="Show Server ID",
+        style=discord.ButtonStyle.secondary
+    )
+    async def show_guild_id(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        await interaction.response.send_message(
+            f"Server ID: {self.guild_id}",
+            ephemeral=True 
+        )
+
 ##Persistent view setup to keep the button active even after bot restarts
 async def setup_hook():
     await init_database()
@@ -206,6 +225,59 @@ async def ping(interaction: discord.Interaction):
 @app_commands.checks.has_permissions(manage_guild=True)
 async def setup(interaction: discord.Interaction):
     await interaction.response.send_modal(SetupModal())
+
+##Command that allows admins to see current Beacon settings
+@bot.tree.command(name="panel", description="View current Beacon configuration")
+async def panel(interaction: discord.Interaction):
+    guild_settings = await get_guild_settings(interaction.guild.id)
+
+    if not guild_settings:
+        await interaction.response.send_message(
+            "No Beacon settings found for this server.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title="Current Beacon Settings"
+    )
+
+    embed.add_field(
+        name="Suggestion Channel",
+        value=f"<#{guild_settings['suggestion_channel_id']}>",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Archive Channel",
+        value=f"<#{guild_settings['archive_channel_id']}>",
+        inline=False
+    )
+
+    if guild_settings['staff_role_id']:
+        embed.add_field(
+            name="Staff Role",
+            value=f"<@&{guild_settings['staff_role_id']}>",
+            inline=False
+        )
+
+    embed.add_field(
+        name="Anonymous Suggestions",
+        value="Enabled" if guild_settings['anonymous_enabled'] else "Disabled",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Voting System",
+        value="Enabled" if guild_settings['voting_enabled'] else "Disabled",
+        inline=False
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=PanelView(interaction.guild.id), 
+        ephemeral=True
+        )
 
 ##Helper functions for suggestion commands
 async def get_suggestion_message(message_link: str, interaction: discord.Interaction):
