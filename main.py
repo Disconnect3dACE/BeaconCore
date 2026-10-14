@@ -58,6 +58,8 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
             )
             return   
 
+        await interaction.response.defer(ephemeral=True)
+
         embed = discord.Embed(
             title="New Suggestion",
             description=self.suggestion.value
@@ -86,7 +88,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         )
         
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Thank you for your suggestion!",
             ephemeral=True
         )
@@ -336,7 +338,7 @@ async def setup(interaction: discord.Interaction):
 
     if existing_settings is not None:
         await interaction.response.send_message(
-            "Beacon has already been set up for this server."
+            "Beacon has already been set up for this server. "
             "Use '/settings' to change settings.",
             ephemeral=True
         )
@@ -496,7 +498,7 @@ async def settings_command(interaction: discord.Interaction):
         )
         return
 
-    embed = discord.Embed(title="ChannelSettings", description="Changes are saved automatically")
+    embed = discord.Embed(title="Channel Settings", description="Changes are saved automatically")
 
     # Add fields to the embed based on the settings
     embed.add_field(
