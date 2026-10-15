@@ -16,6 +16,23 @@ async def init_database():
                 )
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS suggestions (
+                guild_id INTEGER NOT NULL,
+                suggestion_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message_id INTEGER,
+                thread_id INTEGER,
+                author_id INTEGER NOT NULL,
+                anonymous INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                decided_by INTEGER,
+                decided_at TEXT,
+                PRIMARY KEY (guild_id, suggestion_id)
+            )
+        """)
+
         await db.commit()
 
 ## Get guild settings from the database
@@ -76,6 +93,7 @@ async def save_guild_settings(
 
 ##Updates guild settings in the database
 async def update_guild_settings(guild_id: int, **changes):
+        
         current_settings = await get_guild_settings(guild_id)
 
         if current_settings is None:
@@ -93,3 +111,49 @@ async def update_guild_settings(guild_id: int, **changes):
             voting_enabled=bool(settings.get("voting_enabled"))
         )
         return True
+
+##Helper function that creates a suggestion record in the database
+async def create_suggestion_record(
+        guild_id: int, 
+        channel_id: int,
+        author_id: int,
+        anonymous: bool
+):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("BEGIN IMMEDIATE")
+
+        async with db.execute(
+            """
+            SELECT COALESCE(MAX(suggestion_id), 0) + 1
+            FROM suggestions
+            WHERE guild_id = ?
+            """,
+            (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            suggestion_id = row[0]
+
+
+        await db.execute(
+            """
+            INSERT INTO suggestions (
+                guild_id,
+                suggestion_id,
+                channel_id,
+                author_id,
+                anonymous
+            ) 
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                guild_id,
+                suggestion_id,
+                channel_id,
+                author_id,
+                int(anonymous)
+            )
+        )
+        await db.commit()
+
+        return suggestion_id
+    

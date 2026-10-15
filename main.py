@@ -4,7 +4,7 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from database import init_database, get_guild_settings, save_guild_settings, update_guild_settings
+from database import init_database, get_guild_settings, save_guild_settings, update_guild_settings, create_suggestion_record
 
 
 load_dotenv()
@@ -60,9 +60,22 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
 
         await interaction.response.defer(ephemeral=True)
 
+        suggestion_id = await create_suggestion_record(
+            guild_id=interaction.guild.id,
+            channel_id=channel.id,
+            author_id=interaction.user.id,
+            anonymous=self.anonymous.component.value
+        )
+
         embed = discord.Embed(
             title="New Suggestion",
             description=self.suggestion.value
+        )
+
+        embed.add_field(
+            name="Suggestion ID",
+            value=f"#{suggestion_id:03d}",
+            inline=False
         )
 
         if self.anonymous.component.value:
