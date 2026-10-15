@@ -156,4 +156,47 @@ async def create_suggestion_record(
         await db.commit()
 
         return suggestion_id
-    
+
+async def update_suggestion_discord_ids(
+        guild_id: int, 
+        suggestion_id: int, 
+        message_id: int, 
+        thread_id: int
+    ):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            """
+            UPDATE suggestions
+            SET message_id = ?, thread_id = ?
+            WHERE guild_id = ? AND suggestion_id = ?
+            """,
+            (
+                message_id, 
+                thread_id, 
+                guild_id, 
+                suggestion_id
+            )
+        )
+        await db.commit()
+
+async def get_suggestion_record(
+        guild_id: int, 
+        suggestion_id: int
+    ):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        async with db.execute(
+            """
+            SELECT *
+            FROM suggestions
+            WHERE guild_id = ? AND suggestion_id = ?
+            """,
+            (
+                guild_id, 
+                suggestion_id
+                )
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        return row

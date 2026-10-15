@@ -4,8 +4,15 @@ import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from database import init_database, get_guild_settings, save_guild_settings, update_guild_settings, create_suggestion_record
-
+from database import (
+    init_database, 
+    get_guild_settings, 
+    save_guild_settings, 
+    update_guild_settings, 
+    create_suggestion_record, 
+    update_suggestion_discord_ids,
+    get_suggestion_record
+)
 
 load_dotenv()
 
@@ -38,6 +45,8 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
         settings = await get_guild_settings(interaction.guild.id)
 
         if settings is None:
@@ -58,7 +67,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
             )
             return   
 
-        await interaction.response.defer(ephemeral=True)
+        
 
         suggestion_id = await create_suggestion_record(
             guild_id=interaction.guild.id,
@@ -95,6 +104,13 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         thread = await suggestion_message.create_thread(
             name="Suggestion Discussion"
             )
+
+        await update_suggestion_discord_ids(
+            guild_id=interaction.guild.id,
+            suggestion_id=suggestion_id,
+            message_id=suggestion_message.id,
+            thread_id=thread.id
+        )
 
         await thread.send(
         "Use this thread to discuss the current suggestion."
@@ -414,16 +430,16 @@ async def panel(interaction: discord.Interaction):
         ephemeral=True
         )
 
-##Approve and Deny commands for suggestions, only usable by users with staff permissions
+##Approve command for suggestions, only usable by users with staff permissions
 @bot.tree.command(name="approve",description="Approve a suggestion")
 @app_commands.guild_only()
 @app_commands.check(is_beacon_staff)
 async def approve(
     interaction: discord.Interaction,
-    message_link: str
+    suggestion_id: int
 ):
-    message, embed = await get_suggestion_message(
-        message_link, 
+    message, embed = await get_suggestion_message_by_id(
+        suggestion_id,
         interaction
     )
 
@@ -456,15 +472,16 @@ async def approve(
         f"✅ This suggestion has been approved by {interaction.user.display_name}."
     )
 
+##Deny command for suggestions, only usable by users with staff permissions
 @bot.tree.command(name="deny",description="Deny a suggestion")
 @app_commands.guild_only()
 @app_commands.check(is_beacon_staff)
 async def deny(
     interaction: discord.Interaction,
-    message_link: str
+    suggestion_id: int
 ):
-    message, embed = await get_suggestion_message(
-        message_link, 
+    message, embed = await get_suggestion_message_by_id(
+        suggestion_id,
         interaction
     )
 
@@ -671,5 +688,61 @@ async def archive_suggestion(
 
         await archive_channel.send(embed=archive_embed)
 
+##Helper function that retrieves suggestion messsage and embed by suggestion ID
+async def get_suggestion_message_by_id(
+    suggestion_id: int,
+    interaction: discord.Interaction
+):
+    record = await get_suggestion_record(
+        interaction.guild.id,
+        suggestion_id
+    )
+
+    if record is None:
+        await interaction.response.send_message(
+            f"No suggestion found with ID #{suggestion_id:03d}.",
+            ephemeral=True
+        )
+        return None, None
+
+    if record["message_id"] is None:
+        await interaction.response.send_message(
+            f"Suggestion #{suggestion_id:03d} has no Discord message attached to it.",
+            ephemeral=True
+        )
+        return None, None
+
+    channel = interaction.guild.get_channel(
+        record["channel_id"]
+    )
+
+    if channel is None:
+        await interaction.response.send_message(
+            "I couldn't find the channel for that suggestion.",
+            ephemeral=True
+        )
+        return None, None
+
+    try:
+        message = await channel.fetch_message(
+            record["message_id"]
+        )
+    except discord.NotFound:
+        await interaction.response.send_message(
+            "I couldn't find the message for Suggestion #{suggestion_id:03d}.",
+            ephemeral=True
+        )
+        return None, None
+
+    if not message.embeds:
+        await interaction.response.send_message(
+            "That suggestion doesn't contain a valid embed.",
+            ephemeral=True
+        )
+        return None, None
+
+    embed = message.embeds[0]
+
+    return message, embed
 
 bot.run(TOKEN)
