@@ -1,6 +1,5 @@
 import os
 import discord
-import re
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
@@ -11,7 +10,8 @@ from database import (
     update_guild_settings, 
     create_suggestion_record, 
     update_suggestion_discord_ids,
-    get_suggestion_record
+    get_suggestion_record,
+    update_suggestion_status
 )
 
 load_dotenv()
@@ -50,7 +50,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         settings = await get_guild_settings(interaction.guild.id)
 
         if settings is None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "This server has not been configured yet.",
                 ephemeral=True
             )
@@ -61,7 +61,7 @@ class SuggestionModal(discord.ui.Modal, title="Submit a Suggestion"):
         )
 
         if channel is None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "I couldn't find the configured suggestion channel.",
                 ephemeral=True
             )
@@ -446,7 +446,14 @@ async def approve(
     if message is None:
         return
 
-    if suggestion_is_decided(embed):   
+    status_updated = await update_suggestion_status(
+        guild_id=interaction.guild.id,
+        suggestion_id=suggestion_id,
+        status="approved",
+        decided_by=interaction.user.id
+    )
+
+    if not status_updated:
         await interaction.response.send_message(
             "This suggestion has already been decided.",
             ephemeral=True
@@ -487,8 +494,15 @@ async def deny(
 
     if message is None:
         return
+
+    status_updated = await update_suggestion_status(
+        guild_id=interaction.guild.id,
+        suggestion_id=suggestion_id,
+        status="denied",
+        decided_by=interaction.user.id
+    )
     
-    if suggestion_is_decided(embed):
+    if not status_updated:
         await interaction.response.send_message(
             "This suggestion has already been decided.",
             ephemeral=True
@@ -498,6 +512,7 @@ async def deny(
     set_status(embed, "❌ Denied")
     await message.edit(embed=embed)
 
+    
     await interaction.response.send_message(
         "Suggestion denied.",
         ephemeral=True
@@ -553,72 +568,6 @@ async def settings_command(interaction: discord.Interaction):
 
 ##HELPER FUNCTIONS
 
-##Helper functions for suggestion commands
-async def get_suggestion_message(message_link: str, interaction: discord.Interaction):
-    match = re.search(
-        r"discord\.com/channels/(\d+)/(\d+)/(\d+)",
-        message_link
-    )
-
-    if not match:
-        await interaction.response.send_message(
-            "That doesn't look like a valid Discord message link.",
-            ephemeral=True
-        )
-        return None, None
-
-    guild_id, channel_id, message_id = map(int, match.groups())
-
-    if guild_id != interaction.guild.id:
-        await interaction.response.send_message(
-            "That message is from a different server.",
-            ephemeral=True
-        )
-        return None, None
-
-    channel = interaction.guild.get_channel(channel_id)
-
-    if channel is None:
-        await interaction.response.send_message(
-            "I couldn't find that channel.",
-            ephemeral=True
-        )
-        return None, None
-
-    try:
-        message = await channel.fetch_message(message_id)
-    except discord.NotFound:
-        await interaction.response.send_message(
-            "I couldn't find that message.",
-            ephemeral=True
-        )
-        return None, None
-
-    if message.author != bot.user:
-        await interaction.response.send_message(
-            "That message was not created by Help Desk.",
-            ephemeral=True
-        )
-        return None, None
-
-    if not message.embeds:
-        await interaction.response.send_message(
-        "That message doesn't contain a suggestion embed.",
-        ephemeral=True
-    )
-        return None, None
-
-    embed = message.embeds[0]
-
-    if embed.title != "New Suggestion":
-        await interaction.response.send_message(
-        "That doesn't look like a suggestion post.",
-        ephemeral=True
-    )
-        return None, None
-
-    return message, embed
-
 ##Helper function to set the status of a suggestion embed
 def set_status(embed: discord.Embed, status: str):
     for index, field in enumerate(embed.fields):
@@ -631,16 +580,6 @@ def set_status(embed: discord.Embed, status: str):
         value=status,
         inline=False
     )
-
-##Helper function to check if a suggestion has a final; status (approved or denied)
-def suggestion_is_decided(embed: discord.Embed):
-    final_statuses = ["✅ Approved", "❌ Denied"]
-
-    for field in embed.fields:
-        if field.name == "Status" and field.value in final_statuses:
-            return True
-        
-    return False
 
 ##Helper function for closing a suggestion thread
 async def close_suggestion_thread(
@@ -729,7 +668,7 @@ async def get_suggestion_message_by_id(
         )
     except discord.NotFound:
         await interaction.response.send_message(
-            "I couldn't find the message for Suggestion #{suggestion_id:03d}.",
+            f"I couldn't find the message for Suggestion #{suggestion_id:03d}.",
             ephemeral=True
         )
         return None, None

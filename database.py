@@ -200,3 +200,31 @@ async def get_suggestion_record(
             row = await cursor.fetchone()
 
         return row
+
+async def update_suggestion_status(
+        guild_id: int, 
+        suggestion_id: int, 
+        status: str, 
+        decided_by: int 
+    ):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor =  await db.execute(
+            """
+            UPDATE suggestions
+            SET status = ?, 
+                decided_by = ?, 
+                decided_at = CURRENT_TIMESTAMP
+            WHERE guild_id = ? 
+            AND suggestion_id = ?
+            AND status = 'open'
+            """,
+            (
+                status, 
+                decided_by, 
+                guild_id, 
+                suggestion_id
+            )
+        )
+        await db.commit()
+
+        return cursor.rowcount ==1
