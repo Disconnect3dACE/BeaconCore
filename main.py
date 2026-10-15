@@ -438,6 +438,7 @@ async def approve(
     interaction: discord.Interaction,
     suggestion_id: int
 ):
+    await interaction.response.defer(ephemeral=True)
     message, embed = await get_suggestion_message_by_id(
         suggestion_id,
         interaction
@@ -454,7 +455,7 @@ async def approve(
     )
 
     if not status_updated:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "This suggestion has already been decided.",
             ephemeral=True
         )
@@ -463,7 +464,7 @@ async def approve(
     set_status(embed, "✅ Approved")
     await message.edit(embed=embed)
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         "Suggestion approved.",
         ephemeral=True
     )
@@ -487,6 +488,8 @@ async def deny(
     interaction: discord.Interaction,
     suggestion_id: int
 ):
+    await interaction.response.defer(ephemeral=True)
+
     message, embed = await get_suggestion_message_by_id(
         suggestion_id,
         interaction
@@ -503,7 +506,7 @@ async def deny(
     )
     
     if not status_updated:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "This suggestion has already been decided.",
             ephemeral=True
         )
@@ -513,7 +516,7 @@ async def deny(
     await message.edit(embed=embed)
 
     
-    await interaction.response.send_message(
+    await interaction.followup.send(
         "Suggestion denied.",
         ephemeral=True
     )
@@ -638,14 +641,14 @@ async def get_suggestion_message_by_id(
     )
 
     if record is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"No suggestion found with ID #{suggestion_id:03d}.",
             ephemeral=True
         )
         return None, None
 
     if record["message_id"] is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Suggestion #{suggestion_id:03d} has no Discord message attached to it.",
             ephemeral=True
         )
@@ -656,7 +659,7 @@ async def get_suggestion_message_by_id(
     )
 
     if channel is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "I couldn't find the channel for that suggestion.",
             ephemeral=True
         )
@@ -667,14 +670,14 @@ async def get_suggestion_message_by_id(
             record["message_id"]
         )
     except discord.NotFound:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"I couldn't find the message for Suggestion #{suggestion_id:03d}.",
             ephemeral=True
         )
         return None, None
 
     if not message.embeds:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "That suggestion doesn't contain a valid embed.",
             ephemeral=True
         )
