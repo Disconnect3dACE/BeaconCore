@@ -1,5 +1,6 @@
 import os
 import discord
+import traceback
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
@@ -319,7 +320,11 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
             ephemeral=True
         )
     else:
-        print(f"Unhandled error: {error}")
+        traceback.print_exception(
+            type(error), 
+            error, 
+            error.__traceback__
+        )
 
         if interaction.response.is_done():
             await interaction.followup.send(
