@@ -1,6 +1,7 @@
 import os
 import discord
 import traceback
+from discord import guild
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ from database import (
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
+
 
 intents = discord.Intents.default()
 
@@ -295,7 +297,6 @@ async def setup_hook():
     bot.add_view(SetupView())
 
     synced = await bot.tree.sync()
-
     print(f"Synced {len(synced)} commands globally.")
 
 bot.setup_hook=setup_hook
