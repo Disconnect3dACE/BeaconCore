@@ -190,16 +190,16 @@ class SetupModal(discord.ui.Modal, title="Beacon Setup"):
             )
             return
 
+        await panel_channel.send(
+                "Click the button below to submit a suggestion!",
+                view=SetupView()
+            )
+
         await save_guild_settings(
             guild_id=interaction.guild.id,
             suggestion_channel_id=suggestion_channel.id,
             archive_channel_id=archive_channel.id,
             staff_role_id=staff_role.id
-        )
-
-        await panel_channel.send(
-            "Click the button below to submit a suggestion!",
-            view=SetupView()
         )
 
         await interaction.response.send_message(
@@ -572,6 +572,33 @@ async def settings_command(interaction: discord.Interaction):
         ephemeral=True
     )
 
+@bot.tree.command(name="deploy", description="Deploy/Redeploy the suggestion button to the panel channel")
+@app_commands.guild_only()
+@app_commands.checks.has_permissions(manage_guild=True)
+async def deploy_panel(
+    interaction: discord.Interaction,
+    channel: discord.TextChannel
+):
+    settings = await get_guild_settings(interaction.guild.id)
+
+    if settings is None:
+        await interaction.response.send_message(
+            "Beacon has not been setup for this server yet. Use /setup first.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    await channel.send(
+        "Click the button below to submit a suggestion!",
+        view=SetupView()
+    )
+
+    await interaction.followup.send(
+        f"Suggestion button deployed to {channel.mention}.",
+        ephemeral=True
+    )
 
 
 ##HELPER FUNCTIONS
