@@ -1,10 +1,11 @@
-import os
+
 import discord
 import traceback
-from discord import guild
+
 from discord.ext import commands
 from discord import app_commands
-from dotenv import load_dotenv
+
+from config import TOKEN
 from database import (
     init_database, 
     get_guild_settings, 
@@ -15,11 +16,6 @@ from database import (
     get_suggestion_record,
     update_suggestion_status
 )
-
-load_dotenv()
-
-TOKEN = os.getenv("DISCORD_TOKEN")
-
 
 intents = discord.Intents.default()
 
