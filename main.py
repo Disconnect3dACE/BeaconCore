@@ -21,6 +21,7 @@ bot = commands.Bot(
 )
 
 register_suggestion_commands(bot)
+
 ##CLASSES
 
 class SetupModal(discord.ui.Modal, title="Beacon Setup"):
