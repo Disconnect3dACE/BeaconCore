@@ -33,6 +33,28 @@ async def init_database():
             )
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_settings (
+                guild_id INTEGER PRIMARY KEY,
+                category_id INTEGER,
+                log_channel_id INTEGER
+            )
+        """)
+
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS tickets (
+                guild_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                channel_id INTEGER,
+                author_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                closed_by INTEGER,
+                closed_at TEXT,
+                PRIMARY KEY (guild_id, ticket_id)
+            )
+        """)
+
         await db.commit()
 
 ## Get guild settings from the database
