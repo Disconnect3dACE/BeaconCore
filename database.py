@@ -250,3 +250,47 @@ async def update_suggestion_status(
         await db.commit()
 
         return cursor.rowcount ==1
+
+async def get_ticket_settings(
+        guild_id: int
+    ):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        async with db.execute(
+            """
+            SELECT *
+            FROM ticket_settings
+            WHERE guild_id = ?
+            """,
+            (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        return row
+
+async def save_ticket_settings(
+        guild_id: int,
+        category_id: int,
+        log_channel_id: int | None = None
+    ):
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO ticket_settings (
+                guild_id,
+                category_id,
+                log_channel_id
+            )
+            VALUES (?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                category_id = excluded.category_id,
+                log_channel_id = excluded.log_channel_id
+            """,
+            (
+                guild_id,
+                category_id,
+                log_channel_id
+            )
+        )
+        await db.commit()
