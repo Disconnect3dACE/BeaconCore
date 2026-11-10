@@ -5,6 +5,7 @@ import traceback
 from discord.ext import commands
 from discord import app_commands
 from suggestions import SetupView, register_suggestion_commands
+from tickets import register_ticket_commands
 from config import TOKEN
 from database import (
     init_database, 
@@ -21,6 +22,7 @@ bot = commands.Bot(
 )
 
 register_suggestion_commands(bot)
+register_ticket_commands(bot)
 
 ##CLASSES
 
